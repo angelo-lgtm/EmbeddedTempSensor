@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DHT Sensor Monitor & LED Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0d0e14;
+            --card-bg: rgba(25, 27, 40, 0.75);
+            --inner-card-bg: rgba(255, 255, 255, 0.05);
+            --accent-blue: #6366f1;
+            --accent-green: #22c55e;
+            --accent-red: #ef4444;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 100% 100%, rgba(236, 72, 153, 0.1) 0%, transparent 50%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border-radius: 32px;
+            padding: 40px 30px;
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 25px;
+            line-height: 1.3;
+            background: linear-gradient(to right, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(34, 197, 94, 0.1);
+            color: var(--accent-green);
+            padding: 10px 20px;
+            border-radius: 16px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 35px;
+            border: 1px solid rgba(34, 197, 94, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .status-badge.offline {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--accent-red);
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background-color: currentColor;
+            border-radius: 50%;
+            margin-right: 10px;
+            box-shadow: 0 0 10px currentColor;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.4; }
+            100% { opacity: 1; }
+        }
+
+        .section-card {
+            background: var(--inner-card-bg);
+            border-radius: 24px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border: 1px solid var(--glass-border);
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 25px;
+            color: var(--accent-blue);
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .data-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            text-align: center;
+        }
+
+        .data-item label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .data-val {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .data-unit {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .last-updated {
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 20px;
+        }
+
+        .btn-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            border: none;
+            padding: 14px;
+            border-radius: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            font-size: 0.85rem;
+        }
+
+        .btn-on {
+            background-color: var(--accent-green);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(34, 197, 94, 0.3);
+        }
+
+        .btn-on:hover { opacity: 0.9; transform: translateY(-2px); }
+
+        .btn-off {
+            background-color: var(--accent-red);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-off:hover { opacity: 0.9; transform: translateY(-2px); }
+
+        .btn:active { transform: translateY(0); }
+
+        .led-state {
+            text-align: center;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .state-val {
+            margin-left: 5px;
+        }
+
+        .state-val.on { color: var(--accent-green); }
+        .state-val.off { color: var(--accent-red); }
+        .state-val.unknown { color: var(--text-secondary); }
+
+        /* Icons */
+        .icon {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h1>DHT Sensor Monitor & <br>LED Control</h1>
+
+        <div id="status-badge" class="status-badge">
+            <span class="status-dot"></span>
+            <span id="status-text">Connected to broker</span>
+        </div>
+
+        <div class="section-card">
+            <div class="section-header">
+                <svg class="icon" viewBox="0 0 24 24">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                </svg>
+                Sensor Data
+            </div>
+            <div class="data-grid">
+                <div class="data-item">
+                    <label>Temperature</label>
+                    <div class="data-val"><span id="temp-val">--</span></div>
+                    <div class="data-unit">°C</div>
+                </div>
+                <div class="data-item">
+                    <label>Humidity</label>
+                    <div class="data-val"><span id="hum-val">--</span></div>
+                    <div class="data-unit">%</div>
+                </div>
+            </div>
+            <div class="last-updated">Last Updated: <span id="update-time">--</span></div>
+        </div>
+
+        <div class="section-card">
+            <div class="section-header">
+                <svg class="icon" viewBox="0 0 24 24">
+                    <path d="M12 2C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7zm2.85 11.1l-.85.6V16h-4v-2.3l-.85-.6A4.997 4.997 0 017 9c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.63-.8 3.16-2.15 4.1zM9 19h6v1H9v-1z"/>
+                </svg>
+                LED Control (D2 / GPIO4)
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-on" onclick="controlLED('ON')">Turn LED ON</button>
+                <button class="btn btn-off" onclick="controlLED('OFF')">Turn LED OFF</button>
+            </div>
+            <div class="led-state">
+                State: <span id="state-display" class="state-val unknown">Unknown</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- MQTT Configuration ---
+        const MQTT_BROKER = "broker.hivemq.com";
+        const MQTT_PORT = 8884;
+        const TOPIC_TEMP = "student/sensor/temperature";
+        const TOPIC_HUM = "student/sensor/humidity";
+        const TOPIC_LED_CMD = "student/sensor/led";
+        const TOPIC_LED_STATUS = "student/sensor/led_status";
+        
+        const clientID = "web_dashboard_" + Math.random().toString(16).substr(2, 6);
+        let mqttClient;
+
+        // UI Elements
+        const tempEl = document.getElementById('temp-val');
+        const humEl = document.getElementById('hum-val');
+        const timeEl = document.getElementById('update-time');
+        const stateEl = document.getElementById('state-display');
+        const statusBadge = document.getElementById('status-badge');
+        const statusText = document.getElementById('status-text');
+
+        function initMQTT() {
+            mqttClient = new Paho.MQTT.Client(MQTT_BROKER, MQTT_PORT, clientID);
+            
+            mqttClient.onConnectionLost = (resp) => {
+                statusBadge.classList.add('offline');
+                statusText.innerText = "Disconnected";
+                console.log("MQTT Connection Lost:", resp.errorMessage);
+                setTimeout(initMQTT, 5000);
+            };
+
+            mqttClient.onMessageArrived = (msg) => {
+                const topic = msg.destinationName;
+                const payload = msg.payloadString;
+                const time = new Date().toLocaleTimeString();
+
+                if (topic === TOPIC_TEMP) {
+                    tempEl.innerText = payload;
+                    timeEl.innerText = time;
+                } else if (topic === TOPIC_HUM) {
+                    humEl.innerText = payload;
+                    timeEl.innerText = time;
+                } else if (topic === TOPIC_LED_STATUS) {
+                    stateEl.innerText = payload;
+                    stateEl.className = 'state-val ' + payload.toLowerCase();
+                }
+            };
+
+            mqttClient.connect({
+                onSuccess: () => {
+                    statusBadge.classList.remove('offline');
+                    statusText.innerText = "Connected to broker";
+                    mqttClient.subscribe(TOPIC_TEMP);
+                    mqttClient.subscribe(TOPIC_HUM);
+                    mqttClient.subscribe(TOPIC_LED_STATUS);
+                    console.log("MQTT Connected");
+                },
+                onFailure: (err) => {
+                    statusBadge.classList.add('offline');
+                    statusText.innerText = "Connection Failed";
+                    console.error("MQTT Connection Failed", err);
+                    setTimeout(initMQTT, 5000);
+                },
+                useSSL: true
+            });
+        }
+
+        function controlLED(cmd) {
+            if (mqttClient && mqttClient.connected) {
+                const message = new Paho.MQTT.Message(cmd);
+                message.destinationName = TOPIC_LED_CMD;
+                mqttClient.send(message);
+                
+                // Optimistically update UI if desired, but better to wait for feedback topic
+                // stateEl.innerText = cmd === 'ON' ? 'ON' : 'OFF';
+                // stateEl.className = 'state-val ' + cmd.toLowerCase();
+            } else {
+                alert("MQTT not connected!");
+            }
+        }
+
+        window.onload = initMQTT;
+    </script>
+
+</body>
+</html>
