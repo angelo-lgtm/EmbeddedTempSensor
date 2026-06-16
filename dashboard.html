@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <!DOCTYPE html>
 <html lang="en">
 
@@ -350,4 +351,331 @@
     </script>
 
 </body>
+=======
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DHT Sensor Monitor & LED Control</title>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+            font-size: 28px;
+        }
+
+        .connection-status {
+            text-align: center;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .status-connecting {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+        }
+
+        .card h2::before {
+            content: "📊";
+            margin-right: 10px;
+        }
+
+        .sensor-data {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .data-item {
+            text-align: center;
+        }
+
+        .data-label {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        .data-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .data-unit {
+            font-size: 18px;
+            color: #999;
+        }
+
+        .timestamp {
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+            margin-top: 15px;
+        }
+
+        .led-controls h2::before {
+            content: "💡";
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        button {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-on {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-on:hover {
+            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+        }
+
+        .btn-off {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-off:hover {
+            background: #c82333;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
+        }
+
+        .led-status {
+            text-align: center;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+
+        .led-on {
+            color: #28a745;
+        }
+
+        .led-off {
+            color: #dc3545;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 25px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .data-value {
+                font-size: 28px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>DHT Sensor Monitor & LED Control</h1>
+        
+        <div id="connectionStatus" class="connection-status status-connecting">
+            Connecting to broker...
+        </div>
+
+        <div class="card sensor-data-card">
+            <h2>Sensor Data</h2>
+            <div class="sensor-data">
+                <div class="data-item">
+                    <div class="data-label">Temperature</div>
+                    <div class="data-value" id="temperature">--</div>
+                    <div class="data-unit">°C</div>
+                </div>
+                <div class="data-item">
+                    <div class="data-label">Humidity</div>
+                    <div class="data-value" id="humidity">--</div>
+                    <div class="data-unit">%</div>
+                </div>
+            </div>
+            <div class="timestamp">
+                Last Updated: <span id="lastUpdate">--</span>
+            </div>
+        </div>
+
+        <div class="card led-controls">
+            <h2>LED Control (D2 / GPIO4)</h2>
+            <div class="button-group">
+                <button class="btn-on" onclick="controlLED('ON')">Turn LED ON</button>
+                <button class="btn-off" onclick="controlLED('OFF')">Turn LED OFF</button>
+            </div>
+            <div class="led-status">
+                State: <span id="ledState" class="led-off">Unknown</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ⚠️ CHANGE ONLY THIS LINE - Put your name here (lowercase, no spaces)
+        const YOUR_NAME = "Angelo";
+
+        // MQTT Configuration
+        const MQTT_BROKER = "ws://broker.benax.rw:9001";
+        
+        // Topics are automatically created with your name
+        const TOPIC_DATA = `sensor_${YOUR_NAME}`;
+        const TOPIC_LED_CMD = `control_${YOUR_NAME}/led`;
+        const TOPIC_LED_STATE = `control_${YOUR_NAME}/led/status`;
+
+        // Connect to MQTT
+        const client = mqtt.connect(MQTT_BROKER);
+
+        client.on('connect', function() {
+            updateConnectionStatus('connected');
+            console.log('Connected to MQTT broker');
+            
+            // Subscribe to topics
+            client.subscribe(TOPIC_DATA);
+            client.subscribe(TOPIC_LED_STATE);
+            
+            console.log(`Subscribed to: ${TOPIC_DATA}, ${TOPIC_LED_STATE}`);
+        });
+
+        client.on('message', function(topic, message) {
+            const msg = message.toString();
+            console.log(`Received on ${topic}:`, msg);
+
+            if (topic === TOPIC_DATA) {
+                try {
+                    const data = JSON.parse(msg);
+                    updateSensorData(data);
+                } catch (e) {
+                    console.error('Error parsing sensor data:', e);
+                }
+            } else if (topic === TOPIC_LED_STATE) {
+                updateLEDState(msg);
+            }
+        });
+
+        client.on('error', function(error) {
+            updateConnectionStatus('error');
+            console.error('MQTT Error:', error);
+        });
+
+        client.on('offline', function() {
+            updateConnectionStatus('connecting');
+        });
+
+        function updateConnectionStatus(status) {
+            const statusDiv = document.getElementById('connectionStatus');
+            statusDiv.className = 'connection-status';
+            
+            if (status === 'connected') {
+                statusDiv.classList.add('status-connected');
+                statusDiv.textContent = '✓ Connected to broker';
+            } else if (status === 'error') {
+                statusDiv.classList.add('status-error');
+                statusDiv.textContent = '✗ Connection error';
+            } else {
+                statusDiv.classList.add('status-connecting');
+                statusDiv.textContent = '⟳ Connecting to broker...';
+            }
+        }
+
+        function updateSensorData(data) {
+            document.getElementById('temperature').textContent = data.temperature;
+            document.getElementById('humidity').textContent = data.humidity;
+            
+            if (data.ts) {
+                const date = new Date(data.ts * 1000);
+                document.getElementById('lastUpdate').textContent = date.toLocaleString();
+            }
+        }
+
+        function updateLEDState(state) {
+            const ledStateEl = document.getElementById('ledState');
+            ledStateEl.textContent = state;
+            
+            if (state === 'ON') {
+                ledStateEl.className = 'led-on';
+            } else {
+                ledStateEl.className = 'led-off';
+            }
+        }
+
+        function controlLED(command) {
+            client.publish(TOPIC_LED_CMD, command);
+            console.log(`Sent LED command: ${command}`);
+        }
+    </script>
+</body>
+>>>>>>> 499bd8f9815ce73c29572aa7d7fbf5090ad6e8d2
 </html>
